@@ -360,7 +360,7 @@
       <div class="gen-card">
         <div class="noise-overlay"></div>
         <div class="gen-input">
-          <textarea id="inputText" placeholder="Describe what you want to generate... e.g. a cyberpunk samurai standing in a neon-lit alley at midnight, rain pouring, reflections on wet asphalt, cinematic mood..."></textarea>
+          <textarea id="inputText" maxlength="500" aria-label="Prompt description" placeholder="Describe what you want to generate... e.g. a cyberpunk samurai standing in a neon-lit alley at midnight, rain pouring, reflections on wet asphalt, cinematic mood..."></textarea>
           <div class="chars-remaining" id="charCount">500 remaining</div>
         </div>
         <div class="gen-controls">
@@ -472,25 +472,35 @@ function switchAuthTab(tab) {
 }
 function showAuthError(msg) { const el = document.getElementById('authError'); el.textContent = msg; el.classList.add('visible'); }
 
-function handleSignup(e) {
+function readUsers() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem('prisma_users') || '{}');
+    return parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
+  } catch { return {}; }
+}
+async function hashPassword(password) {
+  const bytes = new TextEncoder().encode(password);
+  const digest = await crypto.subtle.digest('SHA-256', bytes);
+  return Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2, '0')).join('');
+}
+async function handleSignup(e) {
   e.preventDefault();
   const name = document.getElementById('signupName').value.trim();
   const email = document.getElementById('signupEmail').value.trim().toLowerCase();
   const pw = document.getElementById('signupPassword').value;
   if (!name || !email || pw.length < 6) return showAuthError('Please fill all fields. Password must be at least 6 characters.');
-  const users = JSON.parse(localStorage.getItem('prisma_users')||'{}');
+  const users = readUsers();
   if (users[email]) return showAuthError('Account already exists.');
-  users[email] = { name, email, password: pw };
+  users[email] = { name, email, passwordHash: await hashPassword(pw) };
   localStorage.setItem('prisma_users', JSON.stringify(users));
   loginUser(email, name);
 }
-function handleLogin(e) {
+async function handleLogin(e) {
   e.preventDefault();
   const email = document.getElementById('loginEmail').value.trim().toLowerCase();
   const pw = document.getElementById('loginPassword').value;
-  const users = JSON.parse(localStorage.getItem('prisma_users')||'{}');
-  const user = users[email];
-  if (!user || user.password !== pw) return showAuthError('Invalid credentials.');
+  const user = readUsers()[email];
+  if (!user || !user.passwordHash || user.passwordHash !== await hashPassword(pw)) return showAuthError('Invalid credentials.');
   loginUser(email, user.name);
 }
 function loginUser(email, name) {
@@ -501,7 +511,7 @@ function loginUser(email, name) {
 function handleLogout() { localStorage.removeItem('prisma_session'); showScreen('landing'); }
 (function checkSession() {
   const s = localStorage.getItem('prisma_session');
-  if (s) { try { const { email } = JSON.parse(s); document.getElementById('userEmail').textContent = email; showScreen('generator'); } catch { localStorage.removeItem('prisma_session'); } }
+  if (s) { try { const parsed = JSON.parse(s); if (typeof parsed.email !== 'string') throw new Error('Invalid session'); document.getElementById('userEmail').textContent = parsed.email; showScreen('generator'); } catch { localStorage.removeItem('prisma_session'); } }
 })();
 
 // ═══════════════════════════════════════
@@ -554,9 +564,10 @@ const charCount = document.getElementById('charCount');
 let currentMode = 'image';
 
 inputText.addEventListener('input', () => {
-  const len = inputText.value.length;
-  charCount.textContent = `${500-len} remaining`;
-  charCount.classList.toggle('warn', 500-len < 50);
+  if (inputText.value.length > 500) inputText.value = inputText.value.slice(0, 500);
+  const remaining = 500 - inputText.value.length;
+  charCount.textContent = `${remaining} remaining`;
+  charCount.classList.toggle('warn', remaining < 50);
 });
 inputText.addEventListener('keydown', e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); convertBtn.click(); } });
 
