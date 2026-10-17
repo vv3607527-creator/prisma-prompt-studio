@@ -11,6 +11,8 @@ A cinematic, full-stack prompt generator themed in dark cream tones. Turn plain 
 - **Auth** — LocalStorage-based sign in / sign up
 - **100% Local** — No data leaves your machine
 
+> **Security note:** Authentication is a local demo feature. Passwords are hashed before storage, but browser LocalStorage is not a secure account store; do not use it for real credentials or sensitive data.
+
 ## Run
 
 ```bash
